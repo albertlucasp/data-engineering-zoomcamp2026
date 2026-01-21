@@ -1,46 +1,11 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[1]:
-
-
+import click
+from calendar import month
+from sqlalchemy import create_engine
 import pandas as pd
-
-
-# In[2]:
-
-
-# Read a sample of the data
-prefix = 'https://github.com/DataTalksClub/nyc-tlc-data/releases/download/yellow/'
-url = f"{prefix}/yellow_tripdata_2021-01.csv.gz"
-df = pd.read_csv(url)
-
-
-# In[3]:
-
-
-# Display the data
-df
-
-
-# In[5]:
-
-
-# Display first rows
-df.head()
-
-
-# In[6]:
-
-
-# Size of data
-len(df)
-
-
-# In[7]:
-
-
-# The warning occurs because pandas cant determine the missing data dtype. So we need to specify it
+from tqdm import tqdm
 
 dtype = {
     "VendorID": "Int64",
@@ -66,102 +31,60 @@ parse_dates = [
     "tpep_dropoff_datetime"
 ]
 
-df = pd.read_csv(
-    url,
-    dtype=dtype,
-    parse_dates=parse_dates
-)
+import click
+
+@click.command()
+@click.option('--user', default='root', help='PostgreSQL user')
+@click.option('--password', default='root', help='PostgreSQL password')
+@click.option('--host', default='localhost', help='PostgreSQL host')
+@click.option('--port', default=5432, type=int, help='PostgreSQL port')
+@click.option('--db', default='ny_taxi', help='PostgreSQL database name')
+@click.option('--table', default='yellow_taxi_data', help='Target table name')
+@click.option('--chunksize', default=100000, type=int, help='Chunk size for reading data')
+@click.option('--year', default = 2021, type=int, help='Year of the data to ingest')
+@click.option('--month', default = 1, type=int, help='Month of the data to ingest')
+
+def ingest_data(user, password, host, port, db, table,chunksize, year, month):
+    """Ingest NYC taxi data into PostgreSQL database"""
+    
+    # Read a sample of the data
+    prefix = 'https://github.com/DataTalksClub/nyc-tlc-data/releases/download/yellow/'
+    url = f"{prefix}/yellow_tripdata_{year}-{month:02d}.csv.gz"
+
+    # Create a DB connection
+    engine = create_engine(f'postgresql://{user}:{password}@{host}:{port}/{db}')
 
 
-# In[8]:
+    # State df_iter
+    df_iter = pd.read_csv(
+        url,
+        dtype = dtype,
+        parse_dates = parse_dates,
+        iterator = True,
+        chunksize = chunksize
+    )
 
+    first = True
+    # Create table schema (no data)
+    for df_chunk in tqdm(df_iter):
+        if first:
+            df_chunk.head(0).to_sql(
+                name = table,
+                con = engine,
+                if_exists = 'replace'
+            )
 
-df
+            first = False
+            print("Table created successfully")
 
+        # Insert chunk
+        df_chunk.to_sql(
+            name = table,
+            con = engine,
+            if_exists = 'append'
+        )
 
-# In[9]:
+        print("Inserted:", len(df_chunk))
 
-
-df.head()
-
-
-# In[10]:
-
-
-df['tpep_pickup_datetime']
-
-
-# In[11]:
-
-
-# Dependencies (library) that used to interact between pandas and other DB (MySQL,oracle,Postgres,ets)
-get_ipython().system('uv add sqlalchemy psycopg2-binary')
-
-
-# In[12]:
-
-
-# Create a DB connection
-from sqlalchemy import create_engine
-engine = create_engine('postgresql://root:root@localhost:5432/ny_taxi')
-
-
-# In[13]:
-
-
-# Get DDL Schema
-print(pd.io.sql.get_schema(df, name='yellow_taxi_data', con=engine))
-
-
-# In[14]:
-
-
-# Create the table from the header,  head(n=0) ensure that we only create the table without data inside
-df.head(n=0).to_sql(name='yellow_taxi_data', con=engine, if_exists='replace')
-
-
-# Now that we have the table & the header only, we dont want to insert all of the data at once
-# (take a long of time, we dont know the current progress / state, is it broken ?)
-# Instead, we partition the data into chunks with equal size . Let's say chunks = 100,000 records
-# read records for the first chunks - load to db, second chunks - load to db, so on..
-
-# In[26]:
-
-
-# State df_iter
-df_iter = pd.read_csv(
-    url,
-    dtype = dtype,
-    parse_dates = parse_dates,
-    iterator = True,
-    chunksize = 100000
-)
-
-
-# In[27]:
-
-
-print(next(df_iter))
-
-
-# In[28]:
-
-
-# Libray to see the database loading process
-get_ipython().system('uv add tqdm')
-from tqdm import tqdm
-
-
-# In[29]:
-
-
-# Inserting data by iterate over chunks
-for df_chunk in tqdm(df_iter):
-    df_chunk.to_sql(name='yellow_taxi_data', con = engine, if_exists = 'append')
-
-
-# In[ ]:
-
-
-
-
+if __name__ == '__main__':
+    ingest_data()
