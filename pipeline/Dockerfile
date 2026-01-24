@@ -20,7 +20,7 @@ COPY "pyproject.toml" "uv.lock" ".python-version" ./
 RUN uv sync --locked
 
 # Copy the pipeline code into the docker image. 1st name is source, 2nd is destination
-COPY pipeline.py pipeline.py
+COPY ingest_data.py ingest_data.py
 
 # Define the first command to be run when starting the container
-ENTRYPOINT [ "python","pipeline.py" ]
+ENTRYPOINT [ "uv", "run", "python", "ingest_data.py" ]

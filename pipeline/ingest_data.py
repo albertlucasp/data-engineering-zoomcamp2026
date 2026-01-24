@@ -31,7 +31,6 @@ parse_dates = [
     "tpep_dropoff_datetime"
 ]
 
-import click
 
 @click.command()
 @click.option('--user', default='root', help='PostgreSQL user')
@@ -44,7 +43,7 @@ import click
 @click.option('--year', default = 2021, type=int, help='Year of the data to ingest')
 @click.option('--month', default = 1, type=int, help='Month of the data to ingest')
 
-def ingest_data(user, password, host, port, db, table,chunksize, year, month):
+def ingest_data(user, password, host, port, db, table, chunksize, year, month):
     """Ingest NYC taxi data into PostgreSQL database"""
     
     # Read a sample of the data
@@ -52,7 +51,7 @@ def ingest_data(user, password, host, port, db, table,chunksize, year, month):
     url = f"{prefix}/yellow_tripdata_{year}-{month:02d}.csv.gz"
 
     # Create a DB connection
-    engine = create_engine(f'postgresql://{user}:{password}@{host}:{port}/{db}')
+
 
 
     # State df_iter
