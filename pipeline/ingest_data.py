@@ -51,8 +51,7 @@ def ingest_data(user, password, host, port, db, table, chunksize, year, month):
     url = f"{prefix}/yellow_tripdata_{year}-{month:02d}.csv.gz"
 
     # Create a DB connection
-
-
+    engine = create_engine(f'postgresql://{user}:{password}@{host}:{port}/{db}')
 
     # State df_iter
     df_iter = pd.read_csv(
